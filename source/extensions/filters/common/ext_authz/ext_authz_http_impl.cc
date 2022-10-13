@@ -140,9 +140,12 @@ ClientConfig::ClientConfig(const envoy::extensions::filters::http::ext_authz::v3
           config.http_service().authorization_response().allowed_upstream_headers())),
       upstream_header_to_append_matchers_(toUpstreamMatchers(
           config.http_service().authorization_response().allowed_upstream_headers_to_append())),
-      cluster_name_(config.http_service().server_uri().cluster()), timeout_(timeout),
+      cluster_name_(config.http_service().server_uri().cluster()), timeout_(timeout),      
       path_prefix_(path_prefix),
       tracing_name_(fmt::format("async {} egress", config.http_service().server_uri().cluster())),
+      // TODO(imre) add config for storing the failed_on
+      // failed_on_(config.http_service().failed_on().Get(0)),
+      failed_on_("gateway-error"),
       request_headers_parser_(Router::HeaderParser::configure(
           config.http_service().authorization_request().headers_to_add(),
           envoy::config::core::v3::HeaderValueOption::OVERWRITE_IF_EXISTS_OR_ADD)) {}
@@ -320,7 +323,36 @@ ResponsePtr RawHttpClientImpl::toResponse(Http::ResponseMessagePtr message) {
   // Set an error status if the call to the authorization server returns any of the 5xx HTTP error
   // codes. A Forbidden response is sent to the client if the filter has not been configured with
   // failure_mode_allow.
-  if (Http::CodeUtility::is5xx(status_code)) {
+
+
+  if (config_->failedOn() == "5xx") {
+    // TODO(imre) this is automatically set the error to 403    
+    std::cerr << "failed on value" << config_->failedOn() << "\n";    
+    if (Http::CodeUtility::is5xx(status_code)) {    
+      std::cerr << "this is 5xx error" << "\n";
+      // Create a Error authorization response.
+      SuccessResponse error{message->headers(),
+                            config_->clientHeaderMatchers(),
+                            config_->upstreamHeaderToAppendMatchers(),
+                            config_->clientHeaderOnSuccessMatchers(),
+                            config_->dynamicMetadataMatchers(),
+                            Response{CheckStatus::Error,
+                                      Http::HeaderVector{},
+                                      Http::HeaderVector{},
+                                      Http::HeaderVector{},
+                                      Http::HeaderVector{},
+                                      Http::HeaderVector{},
+                                      {{}},
+                                      Http::Utility::QueryParamsVector{},
+                                      {},
+                                      message->bodyAsString(),
+                                      static_cast<Http::Code>(status_code),
+                                      ProtobufWkt::Struct{}}};
+      return std::move(error.response_);
+    }
+  } 
+
+  if (Http::CodeUtility::is5xx(status_code)) {    
     return std::make_unique<Response>(errorResponse());
   }
 

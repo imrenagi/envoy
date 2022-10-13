@@ -206,7 +206,7 @@ message BufferSettings {
 // metadata as well as body may be added to the client's response. See :ref:`allowed_client_headers
 // <envoy_v3_api_field_extensions.filters.http.ext_authz.v3.AuthorizationResponse.allowed_client_headers>`
 // for details.
-// [#next-free-field: 9]
+// [#next-free-field: 10]
 message HttpService {
   option (udpa.annotations.versioning).previous_message_type =
       "envoy.config.filter.http.ext_authz.v2.HttpService";
@@ -224,6 +224,9 @@ message HttpService {
 
   // Settings used for controlling authorization response metadata.
   AuthorizationResponse authorization_response = 8;
+
+  // Specifies the conditions under which request should be failed.
+  repeated string failed_on = 9;
 }
 
 message AuthorizationRequest {

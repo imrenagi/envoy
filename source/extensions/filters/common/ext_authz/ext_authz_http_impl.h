@@ -75,6 +75,11 @@ public:
   const std::string& pathPrefix() { return path_prefix_; }
 
   /**
+   * Returns the authorization request path prefix.
+   */
+  const std::string& failedOn() { return failed_on_; }
+
+  /**
    * Returns authorization request timeout.
    */
   const std::chrono::milliseconds& timeout() const { return timeout_; }
@@ -150,6 +155,7 @@ private:
   const std::chrono::milliseconds timeout_;
   const std::string path_prefix_;
   const std::string tracing_name_;
+  const std::string failed_on_;
   Router::HeaderParserPtr request_headers_parser_;
 };
 
