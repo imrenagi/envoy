@@ -77,7 +77,7 @@ public:
   /**
    * Returns the authorization request path prefix.
    */
-  const std::string& failedOn() { return failed_on_; }
+  const std::shared_ptr<std::vector<std::string>>& failedOn() { return failed_on_; }
 
   /**
    * Returns authorization request timeout.
@@ -134,6 +134,8 @@ public:
    */
   const Router::HeaderParser& requestHeaderParser() const { return *request_headers_parser_; }
 
+
+
 private:
   static MatcherSharedPtr
   toRequestMatchers(const envoy::type::matcher::v3::ListStringMatcher& list);
@@ -144,6 +146,8 @@ private:
   toDynamicMetadataMatchers(const envoy::type::matcher::v3::ListStringMatcher& list);
   static MatcherSharedPtr
   toUpstreamMatchers(const envoy::type::matcher::v3::ListStringMatcher& list);
+  static std::shared_ptr<std::vector<std::string>>
+  configure(const Protobuf::RepeatedPtrField<std::string>& failed_on);
 
   const MatcherSharedPtr request_header_matchers_;
   const MatcherSharedPtr client_header_matchers_;
@@ -155,7 +159,7 @@ private:
   const std::chrono::milliseconds timeout_;
   const std::string path_prefix_;
   const std::string tracing_name_;
-  const std::string failed_on_;
+  const std::shared_ptr<std::vector<std::string>> failed_on_;
   Router::HeaderParserPtr request_headers_parser_;
 };
 
