@@ -29,9 +29,6 @@ Http::FilterFactoryCb ExtAuthzFilterConfig::createFilterFactoryFromProtoTyped(
   // context must be captured by value into the callback.
   Http::FilterFactoryCb callback;
 
-  std::cerr << proto_config.http_service().failed_on().size() << "\n";
-  std::cerr << "testing log" << "\n";
-
   if (proto_config.has_http_service()) {
     // Raw HTTP client.
     const uint32_t timeout_ms = PROTOBUF_GET_MS_OR_DEFAULT(proto_config.http_service().server_uri(),

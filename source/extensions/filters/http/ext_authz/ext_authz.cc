@@ -242,9 +242,6 @@ void Filter::onComplete(Filters::Common::ExtAuthz::ResponsePtr&& response) {
 
   switch (response->status) {
   case CheckStatus::OK: {
-
-    std::cerr << "status oke request is granted" << "\n";
-
     // Any changes to request headers or query parameters can affect how the request is going to be
     // routed. If we are changing the headers we also need to clear the route
     // cache.
@@ -355,9 +352,6 @@ void Filter::onComplete(Filters::Common::ExtAuthz::ResponsePtr&& response) {
   }
 
   case CheckStatus::Denied: {
-
-    std::cerr << "status denied" << "\n";
-
     ENVOY_STREAM_LOG(trace, "ext_authz filter rejected the request. Response status code: '{}",
                      *decoder_callbacks_, enumToInt(response->status_code));
     stats_.denied_.inc();
@@ -380,7 +374,6 @@ void Filter::onComplete(Filters::Common::ExtAuthz::ResponsePtr&& response) {
     }
 
     // setResponseFlag must be called before sendLocalReply
-    // TODO(imre) what is this setResponseFlag? why is it necessary?
     decoder_callbacks_->streamInfo().setResponseFlag(
         StreamInfo::ResponseFlag::UnauthorizedExternalService);
     decoder_callbacks_->sendLocalReply(
@@ -406,15 +399,11 @@ void Filter::onComplete(Filters::Common::ExtAuthz::ResponsePtr&& response) {
   }
 
   case CheckStatus::Error: {
-
-    std::cerr << "authz errors" << "\n";
-
     if (cluster_) {
       config_->incCounter(cluster_->statsScope(), config_->ext_authz_error_);
     }
     stats_.error_.inc();
     if (config_->failureModeAllow()) {
-      std::cerr << "failure mode allow" << "\n";
       ENVOY_STREAM_LOG(trace, "ext_authz filter allowed the request with error",
                        *decoder_callbacks_);
       stats_.failure_mode_allowed_.inc();
@@ -423,11 +412,7 @@ void Filter::onComplete(Filters::Common::ExtAuthz::ResponsePtr&& response) {
       }
       continueDecoding();
     } else {
-      std::cerr << "failure mode not allow" << "\n";
-
-
       if (cluster_) {
-          std::cerr << "setting the response to error" << enumToInt(response->status_code) << "\n";
           config_->incCounter(cluster_->statsScope(), config_->ext_authz_denied_);
 
           Http::CodeStats::ResponseStatInfo info{config_->scope(),
