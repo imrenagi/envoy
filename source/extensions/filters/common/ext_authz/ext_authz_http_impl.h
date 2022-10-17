@@ -56,6 +56,17 @@ private:
   const HeaderKeyMatcher matcher_;
 };
 
+
+class FailedOnPolicy {
+public:
+  // clang-format off
+  static constexpr uint32_t FAILED_ON_5XX             = 0x1;
+  static constexpr uint32_t FAILED_ON_GATEWAY_ERROR   = 0x2;
+  // clang-format on
+
+   virtual ~FailedOnPolicy() = default;
+};
+
 /**
  * HTTP client configuration for the HTTP authorization (ext_authz) filter.
  */
@@ -74,10 +85,7 @@ public:
    */
   const std::string& pathPrefix() { return path_prefix_; }
 
-  /**
-   * Returns the authorization request path prefix.
-   */
-  const std::shared_ptr<std::vector<std::string>>& failedOn() { return failed_on_; }
+  uint32_t failedOn() { return failed_on_; }
 
   /**
    * Returns authorization request timeout.
@@ -146,8 +154,7 @@ private:
   toDynamicMetadataMatchers(const envoy::type::matcher::v3::ListStringMatcher& list);
   static MatcherSharedPtr
   toUpstreamMatchers(const envoy::type::matcher::v3::ListStringMatcher& list);
-  static std::shared_ptr<std::vector<std::string>>
-  configure(const Protobuf::RepeatedPtrField<std::string>& failed_on);
+  static std::pair<uint32_t, bool> parseFailedOn(const Protobuf::RepeatedPtrField<std::string>& config);
 
   const MatcherSharedPtr request_header_matchers_;
   const MatcherSharedPtr client_header_matchers_;
@@ -159,7 +166,7 @@ private:
   const std::chrono::milliseconds timeout_;
   const std::string path_prefix_;
   const std::string tracing_name_;
-  const std::shared_ptr<std::vector<std::string>> failed_on_;
+  uint32_t failed_on_;
   Router::HeaderParserPtr request_headers_parser_;
 };
 

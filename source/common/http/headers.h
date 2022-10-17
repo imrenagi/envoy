@@ -291,6 +291,11 @@ public:
   } EnvoyRetryOnGrpcValues;
 
   struct {
+    const std::string _5xx{"5xx"};
+    const std::string GatewayError{"gateway-error"};
+  } EnvoyExtAuthzFailedOnValues;
+
+  struct {
     const std::string _100Continue{"100-continue"};
   } ExpectValues;
 

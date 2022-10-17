@@ -406,15 +406,11 @@ void Filter::onComplete(Filters::Common::ExtAuthz::ResponsePtr&& response) {
   }
 
   case CheckStatus::Error: {
-
-    std::cerr << "authz errors" << "\n";
-
     if (cluster_) {
       config_->incCounter(cluster_->statsScope(), config_->ext_authz_error_);
     }
     stats_.error_.inc();
     if (config_->failureModeAllow()) {
-      std::cerr << "failure mode allow" << "\n";
       ENVOY_STREAM_LOG(trace, "ext_authz filter allowed the request with error",
                        *decoder_callbacks_);
       stats_.failure_mode_allowed_.inc();
@@ -423,11 +419,7 @@ void Filter::onComplete(Filters::Common::ExtAuthz::ResponsePtr&& response) {
       }
       continueDecoding();
     } else {
-      std::cerr << "failure mode not allow" << "\n";
-
-
       if (cluster_) {
-          std::cerr << "setting the response to error" << enumToInt(response->status_code) << "\n";
           config_->incCounter(cluster_->statsScope(), config_->ext_authz_denied_);
 
           Http::CodeStats::ResponseStatInfo info{config_->scope(),

@@ -143,35 +143,13 @@ ClientConfig::ClientConfig(const envoy::extensions::filters::http::ext_authz::v3
       cluster_name_(config.http_service().server_uri().cluster()), timeout_(timeout),      
       path_prefix_(path_prefix),
       tracing_name_(fmt::format("async {} egress", config.http_service().server_uri().cluster())),
-      // TODO(imre) add config for storing the failed_on
-      // failed_on_(config.http_service().failed_on().Get(0)),
-      // failed_on_(configure(config.http_service().failed_on())),
-      failed_on_(configure(config.http_service().failed_on())),
-      // failed_on_({"5xx"}),
-
       request_headers_parser_(Router::HeaderParser::configure(
           config.http_service().authorization_request().headers_to_add(),
           envoy::config::core::v3::HeaderValueOption::OVERWRITE_IF_EXISTS_OR_ADD)) {
 
-
+            failed_on_ |= parseFailedOn(config.http_service().failed_on()).first;
 
           }
-
-std::shared_ptr<std::vector<std::string>>
-ClientConfig::configure(const Protobuf::RepeatedPtrField<std::string>& failed_on) {
-  for (const auto& key : failed_on) {
-    std::cerr << "configure " << key << "\n";
-  }
-
-  std::list<std::string> listOfStr;
-  listOfStr.push_back("first");
-  listOfStr.push_back("sec");
-  listOfStr.push_back("third");
-  listOfStr.push_back("fouth");
-  // Initialize a vector with std::list
-  std::vector<std::string> vecOfStr(listOfStr.begin(), listOfStr.end());
-  return std::make_shared<std::vector<std::string>>(std::move(vecOfStr));
-}
 
 MatcherSharedPtr
 ClientConfig::toRequestMatchers(const envoy::type::matcher::v3::ListStringMatcher& list) {
@@ -191,6 +169,22 @@ ClientConfig::toRequestMatchers(const envoy::type::matcher::v3::ListStringMatche
   return std::make_shared<HeaderKeyMatcher>(std::move(matchers));
 }
 
+std::pair<uint32_t, bool>
+ClientConfig::parseFailedOn(const Protobuf::RepeatedPtrField<std::string>& config) {
+  uint32_t ret = 0;
+   bool all_fields_valid = true;
+  for (const auto& failed_on : config) {
+    if (failed_on == Http::Headers::get().EnvoyExtAuthzFailedOnValues._5xx) {
+      ret |= FailedOnPolicy::FAILED_ON_5XX;
+    } else if (failed_on == Http::Headers::get().EnvoyExtAuthzFailedOnValues.GatewayError) {
+      ret |= FailedOnPolicy::FAILED_ON_GATEWAY_ERROR;
+    } else {
+      all_fields_valid = false;
+    }
+  }
+
+  return {ret, all_fields_valid};
+}
 
 MatcherSharedPtr
 ClientConfig::toClientMatchersOnSuccess(const envoy::type::matcher::v3::ListStringMatcher& list) {
@@ -341,6 +335,8 @@ void RawHttpClientImpl::onBeforeFinalizeUpstreamSpan(
   }
 }
 
+
+
 ResponsePtr RawHttpClientImpl::toResponse(Http::ResponseMessagePtr message) {
   const uint64_t status_code = Http::Utility::getResponseStatus(message->headers());
 
@@ -348,37 +344,53 @@ ResponsePtr RawHttpClientImpl::toResponse(Http::ResponseMessagePtr message) {
   // codes. A Forbidden response is sent to the client if the filter has not been configured with
   // failure_mode_allow.
 
-  for (auto c : *config_->failedOn()) {
-    std::cerr << "iteration " << c << "\n";
+  if (config_->failedOn() & FailedOnPolicy::FAILED_ON_5XX) {
+    if (Http::CodeUtility::is5xx(status_code)) { 
+      std::cerr << "failed on 5xx" << "\n";
+      SuccessResponse error{message->headers(),
+                            config_->clientHeaderMatchers(),
+                            config_->upstreamHeaderToAppendMatchers(),
+                            config_->clientHeaderOnSuccessMatchers(),
+                            config_->dynamicMetadataMatchers(),
+                            Response{CheckStatus::Error,
+                                      Http::HeaderVector{},
+                                      Http::HeaderVector{},
+                                      Http::HeaderVector{},
+                                      Http::HeaderVector{},
+                                      Http::HeaderVector{},
+                                      {{}},
+                                      Http::Utility::QueryParamsVector{},
+                                      {},
+                                      message->bodyAsString(),
+                                      static_cast<Http::Code>(status_code),
+                                      ProtobufWkt::Struct{}}};
+      return std::move(error.response_);
+    }
   }
 
-
-  // if (config_->failedOn() == "5xx") {
-  //   // TODO(imre) this is automatically set the error to 403    
-  //   std::cerr << "failed on value" << config_->failedOn() << "\n";    
-  //   if (Http::CodeUtility::is5xx(status_code)) {    
-  //     std::cerr << "this is 5xx error" << "\n";
-  //     // Create a Error authorization response.
-  //     SuccessResponse error{message->headers(),
-  //                           config_->clientHeaderMatchers(),
-  //                           config_->upstreamHeaderToAppendMatchers(),
-  //                           config_->clientHeaderOnSuccessMatchers(),
-  //                           config_->dynamicMetadataMatchers(),
-  //                           Response{CheckStatus::Error,
-  //                                     Http::HeaderVector{},
-  //                                     Http::HeaderVector{},
-  //                                     Http::HeaderVector{},
-  //                                     Http::HeaderVector{},
-  //                                     Http::HeaderVector{},
-  //                                     {{}},
-  //                                     Http::Utility::QueryParamsVector{},
-  //                                     {},
-  //                                     message->bodyAsString(),
-  //                                     static_cast<Http::Code>(status_code),
-  //                                     ProtobufWkt::Struct{}}};
-  //     return std::move(error.response_);
-  //   }
-  // } 
+  if (config_->failedOn() & FailedOnPolicy::FAILED_ON_GATEWAY_ERROR) {
+    if (Http::CodeUtility::isGatewayError(status_code)) { 
+      std::cerr << "failed on gateway error" << "\n";
+            SuccessResponse error{message->headers(),
+                            config_->clientHeaderMatchers(),
+                            config_->upstreamHeaderToAppendMatchers(),
+                            config_->clientHeaderOnSuccessMatchers(),
+                            config_->dynamicMetadataMatchers(),
+                            Response{CheckStatus::Error,
+                                      Http::HeaderVector{},
+                                      Http::HeaderVector{},
+                                      Http::HeaderVector{},
+                                      Http::HeaderVector{},
+                                      Http::HeaderVector{},
+                                      {{}},
+                                      Http::Utility::QueryParamsVector{},
+                                      {},
+                                      message->bodyAsString(),
+                                      static_cast<Http::Code>(status_code),
+                                      ProtobufWkt::Struct{}}};
+      return std::move(error.response_);
+    }
+  }
 
   if (Http::CodeUtility::is5xx(status_code)) {    
     return std::make_unique<Response>(errorResponse());
