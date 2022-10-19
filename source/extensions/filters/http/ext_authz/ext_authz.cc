@@ -412,60 +412,15 @@ void Filter::onComplete(Filters::Common::ExtAuthz::ResponsePtr&& response) {
       }
       continueDecoding();
     } else {
-      if (cluster_) {
-          config_->incCounter(cluster_->statsScope(), config_->ext_authz_denied_);
+      ENVOY_STREAM_LOG(
+        trace, "ext_authz filter rejected the request with an error. Response status code: {}",
+        *decoder_callbacks_, enumToInt(response->status_code));
 
-          Http::CodeStats::ResponseStatInfo info{config_->scope(),
-                                                cluster_->statsScope(),
-                                                empty_stat_name,
-                                                enumToInt(response->status_code),
-                                                true,
-                                                empty_stat_name,
-                                                empty_stat_name,
-                                                empty_stat_name,
-                                                empty_stat_name,
-                                                empty_stat_name,
-                                                false};
-          config_->httpContext().codeStats().chargeResponseStat(info, false);
-        }
-
-        // setResponseFlag must be called before sendLocalReply
-        // TODO(imre) what is this setResponseFlag? why is it necessary?
-        decoder_callbacks_->streamInfo().setResponseFlag(
-            StreamInfo::ResponseFlag::UnauthorizedExternalService);
-        decoder_callbacks_->sendLocalReply(
-            response->status_code, response->body,
-            nullptr,
-            // [&headers = response->headers_to_set, &callbacks = *decoder_callbacks_](Http::HeaderMap& response_headers) -> void {
-            //   ENVOY_STREAM_LOG(trace,
-            //                   "ext_authz filter added header(s) to the local response:", callbacks);
-            //   // Firstly, remove all headers requested by the ext_authz filter, to ensure that they will
-            //   // override existing headers.
-            //   for (const auto& header : headers) {
-            //     response_headers.remove(header.first);
-            //   }
-            //   // Then set all of the requested headers, allowing the same header to be set multiple
-            //   // times, e.g. `Set-Cookie`.
-            //   for (const auto& header : headers) {
-            //     ENVOY_STREAM_LOG(trace, " '{}':'{}'", callbacks, header.first.get(), header.second);
-            //     response_headers.addCopy(header.first, header.second);
-            //   }
-            // },
-            absl::nullopt, Filters::Common::ExtAuthz::ResponseCodeDetails::get().AuthzError);
-        break;
-      // }
-
-      // ENVOY_STREAM_LOG(
-      //     trace, "ext_authz filter rejected the request with an error. Response status code: {}",
-      //     *decoder_callbacks_, enumToInt(config_->statusOnError()));
-
-      // decoder_callbacks_->streamInfo().setResponseFlag(
-      //     StreamInfo::ResponseFlag::UnauthorizedExternalService);
-      // decoder_callbacks_->sendLocalReply(
-      //     config_->statusOnError(), EMPTY_STRING, 
-      //     nullptr, 
-      //     absl::nullopt,
-      //     Filters::Common::ExtAuthz::ResponseCodeDetails::get().AuthzError);
+      decoder_callbacks_->streamInfo().setResponseFlag(
+          StreamInfo::ResponseFlag::UnauthorizedExternalService);
+      decoder_callbacks_->sendLocalReply(
+          response->status_code, response->body, nullptr, absl::nullopt,
+          Filters::Common::ExtAuthz::ResponseCodeDetails::get().AuthzError);            
     }
     break;
   }
