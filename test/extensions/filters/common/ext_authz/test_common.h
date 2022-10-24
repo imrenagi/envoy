@@ -60,6 +60,26 @@ public:
                                               const std::vector<std::string>& rhs);
 };
 
+MATCHER_P(AuthzErrorResponseWithBody, response, "") {  
+  if (!arg->headers_to_add.empty() || !arg->headers_to_append.empty()) {
+    return false;
+  }
+  
+  if (arg->status != response.status) {
+    return false;
+  }
+  
+  if (arg->status_code != response.status_code) {
+    return false;
+  }
+  
+  if (arg->body.compare(response.body)) {
+    return false;
+  }
+
+  return true;
+}
+
 MATCHER_P(AuthzErrorResponse, status, "") {
   // These fields should be always empty when the status is an error.
   if (!arg->headers_to_add.empty() || !arg->headers_to_append.empty() || !arg->body.empty()) {

@@ -513,6 +513,35 @@ TEST_F(ExtAuthzHttpClientTest, AuthorizationDeniedWithAllAttributes) {
                      TestCommon::makeMessageResponse(expected_headers, expected_body));
 }
 
+// Verify client response status code and body when failed_on is configured with 5xx
+TEST_F(ExtAuthzHttpClientTest, AuthorizationRequestErrorWithFailedOn) {
+  const std::string yaml = R"EOF(
+  http_service:
+    server_uri:
+      uri: "ext_authz:9000"
+      cluster: "ext_authz"
+      timeout: 0.25s
+    failed_on:
+      - 5xx
+  failure_mode_allow: true
+  )EOF";
+
+  initialize(yaml);
+
+  const auto expected_body = std::string{"test"};
+  const auto expected_headers = TestCommon::makeHeaderValueOption({{":status", "500", false}});
+  const auto authz_response = TestCommon::makeAuthzResponse(
+      CheckStatus::Error, Http::Code::InternalServerError, expected_body, expected_headers);  
+  auto check_response = TestCommon::makeMessageResponse(expected_headers, expected_body);
+  
+  envoy::service::auth::v3::CheckRequest request;
+  client_->check(request_callbacks_, request, parent_span_, stream_info_);
+
+  EXPECT_CALL(request_callbacks_,
+              onComplete_(WhenDynamicCastTo<ResponsePtr&>(AuthzErrorResponseWithBody(authz_response))));
+  client_->onSuccess(async_request_, std::move(check_response));
+}
+
 // Verify client response headers when the authorization server denies the request and
 // allowed_client_headers is configured.
 TEST_F(ExtAuthzHttpClientTest, AuthorizationDeniedAndAllowedClientHeaders) {
@@ -545,6 +574,7 @@ TEST_F(ExtAuthzHttpClientTest, AuthorizationRequestError) {
               onComplete_(WhenDynamicCastTo<ResponsePtr&>(AuthzErrorResponse(CheckStatus::Error))));
   client_->onFailure(async_request_, Http::AsyncClient::FailureReason::Reset);
 }
+
 
 // Test the client when a call to authorization server returns a 5xx error status.
 TEST_F(ExtAuthzHttpClientTest, AuthorizationRequest5xxError) {
